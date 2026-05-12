@@ -1,7 +1,7 @@
 mod config;
 mod discord;
 mod tasks;
-mod wifi_manager;
+mod wifi;
 
 use crate::config::env::AppConfig;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
 
     // 2. Conectar Wi-Fi
     let mut wifi = EspWifi::new(peripherals.modem, sys_loop, Some(nvs))?;
-    wifi_manager::connect_wifi(&mut wifi, &config.wifi_ssid, &config.wifi_pass)?;
+    wifi::wifi_manager::connect_wifi(&mut wifi, &config.wifi_ssid, &config.wifi_pass)?;
 
     // 3. Lanzar Tareas (Multihilo)
     info!("Lanzando tareas del sistema...");
