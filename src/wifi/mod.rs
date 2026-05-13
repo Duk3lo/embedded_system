@@ -1,1 +1,2 @@
-pub mod wifi_manager;
+pub mod personal;
+pub mod enterprise;
