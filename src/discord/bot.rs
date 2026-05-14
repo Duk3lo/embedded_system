@@ -1,36 +1,25 @@
 use crate::discord::fetch::fetch_last_message;
-use crate::discord::send::send_reply;
-
+use crate::discord::commands::handle_command;
 use log::info;
 
-pub fn run_bot(
-    discord_token: String, channel_id: String) {
+pub fn run_bot(discord_token: String, channel_id: String) {
     let mut last_message_id = String::new();
+    
+    info!("Bot iniciado. Escuchando canal principal: {}", channel_id);
+
     loop {
-        if let Some(msg) =
-            fetch_last_message(
-                &discord_token,
-                &channel_id
-            ) {
-
+        // En un ESP32, no podemos "escuchar" todo a la vez por HTTP.
+        // Consultamos el canal configurado. 
+        if let Some(msg) = fetch_last_message(&discord_token, &channel_id) {
             if msg.id != last_message_id {
-
-                info!("Mensaje: {}", msg.content);
-
                 last_message_id = msg.id.clone();
-                if msg.content.trim() == "!ping" {
-                    let payload =
-                        r#"{"content":"¡Pong desde ESP32!"}"#;
-                    send_reply(
-                        &discord_token,
-                        &channel_id,
-                        payload
-                    );
-                }
+                info!("Mensaje recibido: {}", msg.content);
+
+                // Si el mensaje empieza con / o es una mención, procesamos
+                handle_command(&msg.content, &discord_token, &channel_id);
             }
         }
-        std::thread::sleep(
-            std::time::Duration::from_secs(3)
-        );
+        // Pausa necesaria para no ser bloqueado por Discord
+        std::thread::sleep(std::time::Duration::from_millis(2000));
     }
 }

@@ -23,18 +23,19 @@ fn main() -> anyhow::Result<()> {
     let mut wifi = EspWifi::new(peripherals.modem, sys_loop.clone(), Some(nvs))?;
     wifi::personal::connect_wifi(&mut wifi, &config.wifi_ssid, &config.wifi_pass)?;
 
-    info!("Lanzando tareas del sistema...");
+    info!("Bot iniciado. RAM libre inicial: {} bytes", unsafe { esp_idf_sys::esp_get_free_heap_size() });
 
+    // Lanzamos la tarea pasando referencias o moviendo los strings una sola vez
     tasks::discord_task::start_discord_task(
-        config.discord_token.clone(),
-        config.channel_id.clone(),
+        config.discord_token, 
+        config.channel_id
     );
 
     loop {
-        info!(
-            "Sistema OK - RAM Libre: {} bytes",
-            unsafe { esp_idf_sys::esp_get_free_heap_size() }
+        info!("Heap libre: {} | Mínimo histórico: {}", 
+            unsafe { esp_idf_sys::esp_get_free_heap_size() },
+            unsafe { esp_idf_sys::esp_get_minimum_free_heap_size() }
         );
-        std::thread::sleep(std::time::Duration::from_secs(30));
+        std::thread::sleep(std::time::Duration::from_secs(60));
     }
 }
