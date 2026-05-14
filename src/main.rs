@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
 
     tasks::discord_task::start_discord_task(
         config.discord_token,
-
+        config.channel_id,
         config.discord_app_id
     );
 
