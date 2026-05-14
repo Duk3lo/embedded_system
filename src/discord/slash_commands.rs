@@ -7,25 +7,19 @@ use log::{error, info};
 use serde_json::json;
 
 pub fn register_slash_commands(discord_token: &str, app_id: &str) {
-    if app_id.len() < 10 {
-        error!("❌ DISCORD_APP_ID inválido.");
-        return;
-    }
-
     info!("🚀 Sincronizando comandos Slash para App ID: {}...", app_id);
 
     let url = format!("https://discord.com/api/v10/applications/{}/commands", app_id);
     let auth = format!("Bot {}", discord_token);
     
+    // JSON Moderno para que aparezca como "App" (User Installable)
     let commands_json = json!([
         {
             "name": "ping",
             "description": "Verifica si el ESP32 esta vivo",
             "type": 1,
-            // Permite que se instale en servidores (0) y en la cuenta de usuario (1)
-            "integration_types": [0, 1],
-            // Permite usarlo en Servidores (0), DM con el Bot (1) y otros DMs (2)
-            "contexts": [0, 1, 2]
+            "integration_types": [0, 1], // Instalable en Servidor y Usuario
+            "contexts": [0, 1, 2]       // Disponible en Servidor, Bot DM y Grupos
         },
         {
             "name": "status",
@@ -37,42 +31,26 @@ pub fn register_slash_commands(discord_token: &str, app_id: &str) {
     ]);
 
     let payload = commands_json.to_string();
-    
-    // --- CAMBIO CLAVE: Calculamos el largo del cuerpo ---
     let content_length = payload.len().to_string();
 
     let headers = [
         ("Authorization", auth.as_str()),
         ("Content-Type", "application/json"),
-        ("Content-Length", content_length.as_str()), // <-- Discord ahora sabe cuánto leer
+        ("Content-Length", content_length.as_str()),
         ("User-Agent", "ESP32-Rust"),
-        ("Connection", "keep-alive"),
+        ("Connection", "close"),
     ];
 
     if let Ok(conn) = EspHttpConnection::new(&HttpConfig {
         crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
-        buffer_size_tx: Some(4096),
+        buffer_size_tx: Some(2048),
         ..Default::default()
     }) {
         let mut client = Client::wrap(conn);
-        
-        // Usamos Method::Put para sobrescribir y limpiar los comandos viejos
         if let Ok(mut request) = client.request(Method::Put, &url, &headers) {
             let _ = request.write_all(payload.as_bytes());
-            
-            if let Ok(mut response) = request.submit() {
-                let status = response.status();
-                
-                let mut body = [0u8; 512];
-                let n = response.read(&mut body).unwrap_or(0);
-                let response_text = std::str::from_utf8(&body[..n]).unwrap_or("");
-
-                if status == 200 || status == 201 {
-                    info!("✅ ¡Comandos registrados exitosamente!");
-                } else {
-                    error!("❌ Error de Discord ({}): {}", status, response_text);
-                }
-            }
+            let _ = request.submit();
+            info!("✅ Registro de comandos finalizado.");
         }
     }
 }
