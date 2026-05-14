@@ -25,9 +25,8 @@ fn main() -> anyhow::Result<()> {
 
     info!("Bot iniciado. RAM libre inicial: {} bytes", unsafe { esp_idf_sys::esp_get_free_heap_size() });
 
-    // Lanzamos la tarea pasando referencias o moviendo los strings una sola vez
     tasks::discord_task::start_discord_task(
-        config.discord_token, 
+        config.discord_token,
         config.channel_id
     );
 

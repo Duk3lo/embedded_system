@@ -7,7 +7,6 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn load() -> anyhow::Result<Self> {
-        // Usamos env! para grabarlas en el binario durante la compilación
         Ok(Self {
             wifi_ssid: env!("WIFI_SSID").to_string(),
             wifi_pass: env!("WIFI_PASS").to_string(),

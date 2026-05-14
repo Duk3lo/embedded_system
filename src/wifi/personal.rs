@@ -14,7 +14,7 @@ pub fn connect_wifi(wifi: &mut EspWifi, ssid: &str, pass: &str) -> anyhow::Resul
     wifi.set_configuration(&wifi_config)?;
     wifi.start()?;
 
-    const MAX_RETRIES: u32 = 0; // 0 = infinito, como tu versión original
+    const MAX_RETRIES: u32 = 0;
     let mut attempt: u32 = 0;
 
     loop {

@@ -7,7 +7,6 @@ pub struct BotCommand {
     pub action: fn(token: &str, channel: &str),
 }
 
-// Registro de comandos
 pub const COMMANDS: &[BotCommand] = &[
     BotCommand {
         name: "!ping",
