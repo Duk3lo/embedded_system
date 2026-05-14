@@ -1,10 +1,10 @@
 use crate::discord::commands::handle_command;
-use crate::discord::slash_commands::{handle_interaction, register_slash_commands}; 
+use crate::discord::slash_commands::{handle_interaction, register_slash_commands};
 use log::{error, info, warn};
 use serde_json::json;
+use std::net::ToSocketAddrs;
 use std::sync::mpsc;
-use std::time::Duration;
-use std::net::ToSocketAddrs; // Para chequear internet real
+use std::time::Duration; // Para chequear internet real
 
 use esp_idf_svc::ws::client::{EspWebSocketClient, EspWebSocketClientConfig, WebSocketEventType};
 use esp_idf_svc::ws::FrameType;
@@ -18,7 +18,7 @@ enum BotEvent {
 pub fn wait_for_internet() {
     info!("🔍 Verificando conexión real a Internet (DNS)...");
     loop {
-        // Intentamos resolver discord.com. 
+        // Intentamos resolver discord.com.
         // Hasta que el router no nos dé IP y el DNS no funcione, esto fallará.
         if "discord.com:443".to_socket_addrs().is_ok() {
             info!("✅ ¡Internet listo y verificado!");
@@ -50,8 +50,10 @@ pub fn run_bot(token: String, default_channel_id: String, app_id: String) {
     // --- 3. CONFIGURACIÓN DEL WEBSOCKET ---
     let connection_config = EspWebSocketClientConfig {
         crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
-        buffer_size: 10240, 
-        task_stack: 8192,   
+        buffer_size: 10240,
+        task_stack: 8192,
+        network_timeout_ms: Duration::from_millis(10000),
+        reconnect_timeout_ms: Duration::from_millis(10000),
         ..Default::default()
     };
 
@@ -81,7 +83,8 @@ pub fn run_bot(token: String, default_channel_id: String, app_id: String) {
             },
             Err(e) => error!("⚠️ Error WS: {:?}", e),
         },
-    ).expect("No se pudo crear el cliente WS");
+    )
+    .expect("No se pudo crear el cliente WS");
 
     // --- 4. BUCLE DE EVENTOS Y HEARTBEAT ---
     loop {
@@ -95,11 +98,16 @@ pub fn run_bot(token: String, default_channel_id: String, app_id: String) {
                         "intents": 37377,
                         "properties": { "os": "esp32", "browser": "esp-bot", "device": "esp32" }
                     }
-                }).to_string();
+                })
+                .to_string();
                 let _ = client.send(FrameType::Text(false), identify.as_bytes());
             }
             Ok(BotEvent::Message(content, t, c)) => handle_command(&content, &t, &c),
-            Ok(BotEvent::Interaction(cmd, id, tok)) => handle_interaction(&cmd, &id, &tok),
+            Ok(BotEvent::Interaction(cmd, id, tok)) => {
+                std::thread::spawn(move || {
+                    handle_interaction(&cmd, &id, &tok);
+                });
+            }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 let hb = json!({"op": 1, "d": null}).to_string();
                 let _ = client.send(FrameType::Text(false), hb.as_bytes());
@@ -110,9 +118,16 @@ pub fn run_bot(token: String, default_channel_id: String, app_id: String) {
     }
 }
 
-fn process_discord_event(v: serde_json::Value, token: &str, def_channel: &str, tx: &mpsc::Sender<BotEvent>) {
+fn process_discord_event(
+    v: serde_json::Value,
+    token: &str,
+    def_channel: &str,
+    tx: &mpsc::Sender<BotEvent>,
+) {
     match v["op"].as_u64() {
-        Some(10) => { let _ = tx.send(BotEvent::Op10Hello); }
+        Some(10) => {
+            let _ = tx.send(BotEvent::Op10Hello);
+        }
         Some(0) => {
             let t = v["t"].as_str().unwrap_or("");
             let d = &v["d"];
@@ -121,13 +136,13 @@ fn process_discord_event(v: serde_json::Value, token: &str, def_channel: &str, t
                 let _ = tx.send(BotEvent::Message(
                     d["content"].as_str().unwrap_or("").to_string(),
                     token.to_string(),
-                    d["channel_id"].as_str().unwrap_or(def_channel).to_string()
+                    d["channel_id"].as_str().unwrap_or(def_channel).to_string(),
                 ));
             } else if t == "INTERACTION_CREATE" && d["type"].as_u64() == Some(2) {
                 let _ = tx.send(BotEvent::Interaction(
                     d["data"]["name"].as_str().unwrap_or("").to_string(),
                     d["id"].as_str().unwrap_or("").to_string(),
-                    d["token"].as_str().unwrap_or("").to_string()
+                    d["token"].as_str().unwrap_or("").to_string(),
                 ));
             }
         }
