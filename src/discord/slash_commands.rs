@@ -12,14 +12,13 @@ pub fn register_slash_commands(discord_token: &str, app_id: &str) {
     let url = format!("https://discord.com/api/v10/applications/{}/commands", app_id);
     let auth = format!("Bot {}", discord_token);
     
-    // JSON Moderno para que aparezca como "App" (User Installable)
     let commands_json = json!([
         {
             "name": "ping",
             "description": "Verifica si el ESP32 esta vivo",
             "type": 1,
-            "integration_types": [0, 1], // Instalable en Servidor y Usuario
-            "contexts": [0, 1, 2]       // Disponible en Servidor, Bot DM y Grupos
+            "integration_types": [0, 1],
+            "contexts": [0, 1, 2]
         },
         {
             "name": "status",
@@ -55,19 +54,13 @@ pub fn register_slash_commands(discord_token: &str, app_id: &str) {
     }
 }
 
-// 2. RESPONDER A LAS INTERACCIONES (Cuando alguien ejecuta /ping)
 pub fn handle_interaction(command_name: &str, interaction_id: &str, interaction_token: &str) {
     info!("Ejecutando Slash Command: /{}", command_name);
-
-    // Usamos la lógica compartida
     let response_text = get_response_for(command_name);
-
-    // Enviamos la respuesta usando el método de interacciones
     send_interaction_reply(interaction_id, interaction_token, &response_text);
 }
 
 fn send_interaction_reply(interaction_id: &str, interaction_token: &str, content: &str) {
-    // 1. Preparamos el JSON antes de abrir la conexión para no perder tiempo con el socket abierto
     let payload_json = serde_json::json!({
         "type": 4,
         "data": { "content": content }
@@ -75,10 +68,9 @@ fn send_interaction_reply(interaction_id: &str, interaction_token: &str, content
     let payload = payload_json.to_string();
     let content_length = payload.len().to_string();
 
-    // 2. Abrimos la conexión
     let connection = match EspHttpConnection::new(&HttpConfig {
         crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
-        buffer_size_tx: Some(2048), // Buffer más grande para enviar más rápido
+        buffer_size_tx: Some(2048),
         ..Default::default()
     }) {
         Ok(c) => c,
@@ -90,14 +82,13 @@ fn send_interaction_reply(interaction_id: &str, interaction_token: &str, content
     
     let headers = [
         ("Content-Type", "application/json"),
-        ("Content-Length", content_length.as_str()), // <-- MUY IMPORTANTE
+        ("Content-Length", content_length.as_str()),
         ("Connection", "close"),
     ];
 
     if let Ok(mut request) = client.request(Method::Post, &url, &headers) {
         let _ = request.write_all(payload.as_bytes());
         if let Ok(_) = request.submit() {
-            // No perdemos tiempo leyendo la respuesta de Discord si no es necesario
             info!("✅ Respuesta Slash enviada.");
         }
     }

@@ -4,7 +4,7 @@ use log::{error, info, warn};
 use serde_json::json;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc;
-use std::time::Duration; // Para chequear internet real
+use std::time::Duration;
 
 use esp_idf_svc::ws::client::{EspWebSocketClient, EspWebSocketClientConfig, WebSocketEventType};
 use esp_idf_svc::ws::FrameType;
@@ -18,8 +18,6 @@ enum BotEvent {
 pub fn wait_for_internet() {
     info!("🔍 Verificando conexión real a Internet (DNS)...");
     loop {
-        // Intentamos resolver discord.com.
-        // Hasta que el router no nos dé IP y el DNS no funcione, esto fallará.
         if "discord.com:443".to_socket_addrs().is_ok() {
             info!("✅ ¡Internet listo y verificado!");
             break;
@@ -32,7 +30,6 @@ pub fn wait_for_internet() {
 pub fn run_bot(token: String, default_channel_id: String, app_id: String) {
     info!("🤖 Iniciando ciclo de vida del Bot...");
 
-    // --- 1. VERIFICACIÓN DE INTERNET REAL (DNS) ---
     loop {
         info!("🔍 Verificando conexión a Internet...");
         if "discord.com:443".to_socket_addrs().is_ok() {
@@ -43,11 +40,7 @@ pub fn run_bot(token: String, default_channel_id: String, app_id: String) {
         std::thread::sleep(Duration::from_secs(3));
     }
 
-    // --- 2. REGISTRO DE COMANDOS SLASH ---
-    // Esto asegura que Discord siempre tenga la lista actualizada antes de conectar el WS
     register_slash_commands(&token, &app_id);
-
-    // --- 3. CONFIGURACIÓN DEL WEBSOCKET ---
     let connection_config = EspWebSocketClientConfig {
         crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
         buffer_size: 10240,
@@ -86,7 +79,6 @@ pub fn run_bot(token: String, default_channel_id: String, app_id: String) {
     )
     .expect("No se pudo crear el cliente WS");
 
-    // --- 4. BUCLE DE EVENTOS Y HEARTBEAT ---
     loop {
         match rx.recv_timeout(Duration::from_secs(30)) {
             Ok(BotEvent::Op10Hello) => {
