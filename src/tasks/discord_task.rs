@@ -1,22 +1,10 @@
-use crate::discord::bot::run_bot;
-
-use std::thread;
-
-pub fn start_discord_task(
-    discord_token: String,
-    channel_id: String,
-) {
-
-    thread::Builder::new()
+pub fn start_discord_task(token: String, channel: String, app_id: String) {
+    std::thread::Builder::new()
         .name("discord_task".into())
         .stack_size(20 * 1024)
         .spawn(move || {
-
-            run_bot(
-                discord_token,
-                channel_id
-            );
-
+            crate::discord::bot::wait_for_internet();
+            crate::discord::bot::run_bot(token, channel, app_id);
         })
         .unwrap();
 }

@@ -1,5 +1,5 @@
 use esp_idf_svc::wifi::{AuthMethod, ClientConfiguration, Configuration, EspWifi};
-use log::{info, warn};
+use log::{info};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -13,33 +13,29 @@ pub fn connect_wifi(wifi: &mut EspWifi, ssid: &str, pass: &str) -> anyhow::Resul
 
     wifi.set_configuration(&wifi_config)?;
     wifi.start()?;
+    
+    // El driver interno de ESP-IDF intentará conectar automáticamente al iniciar.
+    // Solo llamamos a connect() si no lo está intentando ya.
+    info!("Iniciando proceso de conexión a {}...", ssid);
+    let _ = wifi.connect(); 
 
-    const MAX_RETRIES: u32 = 0;
-    let mut attempt: u32 = 0;
-
-    loop {
-        attempt += 1;
-        info!("Intentando conectar a {}... (intento {})", ssid, attempt);
-
-        if let Err(e) = wifi.connect() {
-            warn!("connect() falló: {e}");
+    // Aumentamos el tiempo de espera a 20 segundos para dar margen al router y al DHCP
+    for segundo in 1..=20 {
+        sleep(Duration::from_secs(1));
+        
+        if wifi.is_connected().unwrap_or(false) {
+            info!("¡Wi-Fi conectado a nivel de radio en el segundo {}!", segundo);
+            // Espera extra vital para que el router asigne la IP (DHCP)
+            sleep(Duration::from_secs(2)); 
+            return Ok(());
         }
-
-        for _ in 0..10 {
-            if wifi.is_connected().unwrap_or(false) {
-                info!("¡Wi-Fi conectado!");
-                return Ok(());
-            }
-            sleep(Duration::from_secs(1));
-        }
-
-        warn!("Fallo de conexión. Reintentando...");
-
-        let _ = wifi.disconnect();
-        sleep(Duration::from_secs(2));
-
-        if MAX_RETRIES != 0 && attempt >= MAX_RETRIES {
-            anyhow::bail!("No se pudo conectar a Wi-Fi tras {attempt} intentos");
+        
+        if segundo % 5 == 0 {
+            info!("... todavía intentando conectar ({}s) ...", segundo);
+            // Re-lanzamos la orden de conectar por si el driver se rindió
+            let _ = wifi.connect();
         }
     }
+
+    anyhow::bail!("No se pudo conectar al Wi-Fi tras 20 segundos. Revisa la señal o la clave.");
 }
